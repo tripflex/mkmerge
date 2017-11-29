@@ -1,0 +1,162 @@
+
+#!/bin/bash
+
+# Define help function
+function help(){
+    echo "mkmerge - Meteor Kitchen GIT Merge";
+    echo "Usage example:";
+    echo "mkmerge (-i|--id) string [(-h|--help)] [(-v|--verbose)] [(-V|--version)] [(-d|--dir) string]";
+    echo "Options:";
+    echo "-h or --help: Displays this information.";
+    echo "-v or --verbose: Verbose mode on.";
+    echo "-V or --version: Displays the current version number.";
+    echo "-i or --id string: Meteor Kitchen project ID. Required.";
+    echo "-d or --dir string: Project directory location (defaults to src in pwd).";
+    exit 1;
+}
+
+# Declare vars. Flags initalizing to 0.
+verbose=0;
+version=0;
+
+function checkYes {
+	printf "\n$1 (Y/N)";
+	read answer
+	    case "$answer" in
+	    Y|y|yes|YES|Yes) return 0 ;;
+	    *) return 1 ;;
+	    esac
+}
+
+function maybeAddExports(){
+
+    if ! grep -q 'FLAGS_GETOPT_CMD' ~/.bash_profile ; then
+        printf "\nFLAGS_GETOPT_CMD not found in your ~/.bash_profile file";
+        printf "\nWe will need to write to the ~/.bash_profile file, you may be prompted for your password to do this...\n";
+        echo 'export FLAGS_GETOPT_CMD="$(brew --prefix gnu-getopt)/bin/getopt"' | sudo tee -a ~/.bash_profile
+    fi
+
+    export FLAGS_GETOPT_CMD="$(brew --prefix gnu-getopt)/bin/getopt";
+}
+
+function installOSXGetOpt(){
+
+    maybeInstallBrew;
+
+    printf "\nChecking if gnu-getopt is installed already with Homebrew...\n";
+    brew list gnu-getopt || brew install gnu-getopt
+
+    maybeAddExports;
+
+    if [ -z "$FLAGS_GETOPT_CMD" ]; then
+        printf "\nFLAGS_GETOPT_CMD is still not defined, unknown error, exiting";
+        exit 1;
+    else
+        return 0;
+    fi
+}
+
+function maybeInstallBrew(){
+
+    if ! [ -x "$(command -v brew)" ]; then
+
+        printf "\nError: Homebrew is not installed, and is required!";
+
+        if checkYes "Would you like to go ahead and install Homebrew?"; then
+            /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+        else
+            printf "\nHomebrew is required for this script to work on OSX!";
+            exit 1;
+        fi
+
+    fi
+
+    # Make sure we can call Homebrew (brew) after installing, otherwise exit
+    if ! [ -x "$(command -v brew)" ]; then
+        printf "\nUnable to find Homebrew, please run again, or install manually and then re-run this script.";
+        exit 1;
+    fi
+}
+
+# OSX Has problems with getopt, so this must be ran on OSX systems:
+# brew install gnu-getopt
+# echo 'export FLAGS_GETOPT_CMD="$(brew --prefix gnu-getopt)/bin/getopt"' >> ~/.bash_profile
+# . ~/.bash_profile
+if [ -z "$FLAGS_GETOPT_CMD" ] && [ -x "$(brew --prefix gnu-getopt)" ]; then
+    maybeAddExports;
+fi
+
+if [[ "$OSTYPE" == "darwin"* ]] && [ -z "$FLAGS_GETOPT_CMD" ];
+then
+    clear;
+    printf "\nOSX has problems parsing getopt values, so to use on OSX you MUST install gnu-getopt via brew (brew install gnu-getopt), and set FLAGS_GETOPT_CMD in your .bash_profile file.";
+    if checkYes "Would you like me to go ahead and do this for you?"; then
+        installOSXGetOpt;
+    else
+        exit 1;
+    fi
+fi
+
+# Execute getopt
+ARGS=$(getopt -o "hvVi:d:" -l "help,verbose,version,id:,dir:" -n "mkmerge" -- "$@");
+
+#Bad arguments
+if [ $? -ne 0 ];
+then
+    help;
+fi
+
+eval set -- "$ARGS";
+
+while true; do
+    case "$1" in
+        -h|--help)
+            shift;
+            help;
+            ;;
+        -v|--verbose)
+            shift;
+                    verbose="1";
+            ;;
+        -V|--version)
+            shift;
+                    version="1";
+            ;;
+        -i|--id)
+            shift;
+                    if [ -n "$1" ];
+                    then
+                        id="$1";
+                        shift;
+                    fi
+            ;;
+        -d|--dir)
+            shift;
+                    if [ -n "$1" ];
+                    then
+                        dir="$1";
+                        shift;
+                    fi
+            ;;
+
+        --)
+            shift;
+            break;
+            ;;
+    esac
+done
+
+#Check required arguments
+if [ -z "$id" ]
+then
+    echo "id is required";
+    help;
+fi
+
+if [ -z "$dir" ]
+then
+    dot="$(cd "$(dirname "$0")"; pwd)"
+    dir="$dot/src"
+fi
+
+printf "\n\nEND OF FILE\n\n";
